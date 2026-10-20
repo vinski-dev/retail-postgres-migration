@@ -1,0 +1,26 @@
+version: 2
+
+metrics:
+  - name: total_sales
+    description: "Total gross revenue generated."
+    type: simple
+    label: "Total Sales"
+    type_params:
+      measure: sales_amount
+
+  - name: total_profit
+    description: "Total profit generated across all orders."
+    type: simple
+    label: "Total Profit"
+    type_params:
+      measure: profit_amount
+
+  - name: profit_margin
+    description: "Ratio of profit to total sales."
+    type: derived
+    label: "Profit Margin %"
+    type_params:
+      expr: "total_profit / total_sales"
+      metrics:
+        - name: total_profit
+        - name: total_sales

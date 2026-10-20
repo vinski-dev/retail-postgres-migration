@@ -1,0 +1,13 @@
+pandas
+sqlalchemy
+psycopg2-binary
+kagglehub
+dbt-postgres
+python-dotenv
+pandas
+sqlalchemy
+psycopg2-binary
+kagglehub
+dbt-postgres
+python-dotenv
+dbt-metricflow

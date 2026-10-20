@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: raw_data
+    description: "Raw operational data ingested via Python"
+    tables:
+      - name: raw_superstore_orders
+        description: "1:1 extract of Superstore sales data"

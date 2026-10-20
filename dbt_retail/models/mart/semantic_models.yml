@@ -1,0 +1,35 @@
+version: 2
+
+semantic_models:
+  - name: semantic_sales
+    description: "Semantic model mapping the fact_sales table for MetricFlow."
+    model: ref('fact_sales')
+
+    defaults:
+      agg_time_dimension: order_date
+
+    entities:
+      - name: order_id
+        type: primary
+      - name: customer_id
+        type: foreign
+      - name: product_id
+        type: foreign
+
+    dimensions:
+      - name: order_date
+        type: time
+        type_params:
+          time_granularity: day
+      - name: ship_mode
+        type: categorical
+
+    measures:
+      - name: sales_amount
+        description: "The raw sum of sales."
+        expr: sales
+        agg: sum
+      - name: profit_amount
+        description: "The raw sum of profit."
+        expr: profit
+        agg: sum
