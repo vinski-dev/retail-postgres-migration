@@ -1,22 +1,26 @@
-name: dbt CI/CD Pipeline
+name: dbt CI Pipeline
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
+      - feature/*
   pull_request:
-    branches: ["main"]
+    branches:
+      - main
 
 jobs:
-  dbt-build-and-test:
+  build-and-test:
     runs-on: ubuntu-latest
 
+    # 1. Spin up a temporary Postgres database on the GitHub runner
     services:
       postgres:
         image: postgres:15
         env:
-          POSTGRES_USER: postgres
+          POSTGRES_USER: ci_user
           POSTGRES_PASSWORD: ci_password
-          POSTGRES_DB: postgres
+          POSTGRES_DB: ci_olist
         ports:
           - 5432:5432
         options: >-
@@ -25,53 +29,36 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-    # defaults:
-    #   run:
-    #     working-directory: ./dbt_retail
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v4
         with:
           python-version: "3.10"
 
       - name: Install dependencies
-        run: |
-          pip install dbt-postgres dbt-metricflow
+        run: pip install pandas sqlalchemy psycopg2-binary dbt-postgres
 
-      - name: Create isolated CI profiles.yml
-        run: |
-          mkdir -p ~/.dbt
-          cat <<EOF > ~/.dbt/profiles.yml
-          dbt_retail:
-            target: ci
-            outputs:
-              ci:
-                type: postgres
-                host: localhost
-                user: postgres
-                pass: ci_password
-                port: 5432
-                dbname: postgres
-                schema: ci_analytics
-                threads: 4
-          EOF
+      # 2. Ingest the raw data into the temporary CI database
+      - name: Ingest Raw Data
+        run: python scripts/ingest_to_postgres.py
+        env:
+          DB_HOST: localhost
+          DB_USER: ci_user
+          DB_PASSWORD: ci_password
+          DB_NAME: ci_olist
 
-      - name: Run dbt dependencies
+      # 3. Install dbt packages (required for dbt_utils)
+      - name: Install dbt packages
         run: dbt deps --project-dir dbt_retail
 
+      # 4. Run dbt build using the temporary credentials
       - name: Build data warehouse
-        run: dbt build --project-dir dbt_retail  --profiles-dir dbt_retail
+        run: dbt build --project-dir dbt_retail --profiles-dir dbt_retail
         env:
-          DB_HOST: ${{ secrets.DB_HOST }}
-          DB_USER: ${{ secrets.DB_USER }}
-          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
-          DB_NAME: ${{ secrets.DB_NAME }}
-
-      - name: Validate Semantic Layer
-        run: |
-          export DBT_PROFILES_DIR="~/.dbt"
-          mf query --metrics total_sales --group-by metric_time__year
+          DB_HOST: localhost
+          DB_USER: ci_user
+          DB_PASSWORD: ci_password
+          DB_NAME: ci_olist
