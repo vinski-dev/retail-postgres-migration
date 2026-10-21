@@ -6,3 +6,11 @@ sources:
     tables:
       - name: raw_superstore_orders
         description: "1:1 extract of Superstore sales data"
+  - name: olist
+    schema: raw_data
+    tables:
+      - name: olist_orders
+      - name: olist_order_items
+      - name: olist_reviews
+      - name: olist_products
+      - name: olist_customers

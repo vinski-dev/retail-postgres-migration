@@ -25,6 +25,10 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+    # defaults:
+    #   run:
+    #     working-directory: ./dbt_retail
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -57,10 +61,10 @@ jobs:
           EOF
 
       - name: Run dbt dependencies
-        run: dbt deps
+        run: dbt deps --project-dir dbt_retail
 
       - name: Build data warehouse
-        run: dbt build
+        run: dbt build --project-dir dbt_retail  --profiles-dir dbt_retail
 
       - name: Validate Semantic Layer
         run: |

@@ -1,92 +1,106 @@
-import pandas as pd
-from sqlalchemy import create_engine, text
-import kagglehub
 import os
-import shutil
-import uuid
-from dotenv import load_dotenv  # <-- Add this
+import kagglehub
+from kagglehub import KaggleDatasetAdapter
+import pandas as pd
+import kagglehub
+from sqlalchemy import create_engine, text
+from sqlalchemy.engine import URL  # <-- Import the URL builder
+from dotenv import load_dotenv
 
-# Load environment variables from the .env file automatically
+# Load variables from the .env file
 load_dotenv()
 
+# Safely construct the URL (handles special characters in passwords)
+db_url = URL.create(
+    drivername="postgresql",
+    username=os.getenv("DB_USER"),
+    password=os.getenv("DB_PASSWORD"),
+    host=os.getenv("DB_HOST"),
+    port=os.getenv("DB_PORT"),
+    database=os.getenv("DB_NAME"),
+)
 
-# ---------------------------------------------------------
-# 1. Structural Helper
-# ---------------------------------------------------------
-def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
-    df.columns = (
-        df.columns.str.strip()
-        .str.lower()
-        .str.replace(r"[^a-z0-9_]", "_", regex=True)
-        .str.replace(r"_+", "_", regex=True)
-    )
-    return df
+engine = create_engine(db_url)
 
 
-# ---------------------------------------------------------
-# 2. Main Execution
-# ---------------------------------------------------------
-def main():
-    db_url = os.getenv("POSTGRES_URL", "postgresql://user:pass@localhost:5432/retail_db")
-    engine = create_engine(db_url)
-
-    # --- NEW: Ensure Schema Exists Automatically ---
+def setup_database():
+    """Ensure the raw_data schema exists before loading."""
     with engine.connect() as conn:
         conn.execute(text("CREATE SCHEMA IF NOT EXISTS raw_data;"))
         conn.commit()
-    print("Verified 'raw_data' schema exists.")
+    print("Database schema 'raw_data' is ready.")
 
-    input_dir = "input"
-    os.makedirs(input_dir, exist_ok=True)
 
-    batch_id = str(uuid.uuid4())
-    loaded_at = pd.Timestamp.utcnow()
-    print(f"Starting ingestion run. Batch ID: {batch_id}")
+# 2. Superstore Ingestion Module
+def ingest_superstore():
+    """Ingest the original Superstore dataset from a local file."""
+    # Update this path to where your Superstore CSV actually lives
+    superstore_path = "data/superstore.csv"
+    table_name = "raw_superstore_orders"
 
-    print("Extracting Superstore dataset from Kaggle...")
-    dataset_path = kagglehub.dataset_download("vivek468/superstore-dataset-final")
+    if os.path.exists(superstore_path):
+        print(f"Ingesting Superstore into raw_data.{table_name}...")
+        df = pd.read_csv(superstore_path)
 
-    csv_files = [f for f in os.listdir(dataset_path) if f.endswith(".csv")]
-    if not csv_files:
-        raise FileNotFoundError("No CSV files found.")
+        # Standardize column names (optional but recommended before dbt)
+        df.columns = [col.lower().replace(" ", "_").replace("-", "_") for col in df.columns]
 
-    raw_cached_path = os.path.join(dataset_path, csv_files[0])
-    raw_local_path = os.path.join(input_dir, "raw_superstore.csv")
-    shutil.copy(raw_cached_path, raw_local_path)
+        df.to_sql(name=table_name, con=engine, schema="raw_data", if_exists="replace", index=False, chunksize=10000)
+    else:
+        print(f"Skipped: Superstore file not found at {superstore_path}")
 
-    print("Applying structural types and audit metadata...")
-    raw_orders = (
-        pd.read_csv(raw_local_path, encoding="unicode_escape")
-        .pipe(clean_column_names)
-        .assign(
-            order_date=lambda x: pd.to_datetime(x["order_date"], format="mixed", errors="coerce"),
-            ship_date=lambda x: pd.to_datetime(x["ship_date"], format="mixed", errors="coerce"),
-            sales=lambda x: pd.to_numeric(x["sales"], errors="coerce"),
-            quantity=lambda x: pd.to_numeric(x["quantity"], errors="coerce"),
-            _batch_id=batch_id,
-            _loaded_at=loaded_at,
-        )
-    )
 
-    clean_local_path = os.path.join(input_dir, "db_ready_superstore.csv")
-    raw_orders.to_csv(clean_local_path, index=False)
+# 3. Olist Kaggle Ingestion Module
+def ingest_olist():
+    """Download and ingest the Brazilian E-Commerce dataset directly."""
+    print("Downloading dataset to local cache...")
+    dataset_path = kagglehub.dataset_download("olistbr/brazilian-ecommerce")
 
-    print(f"Loading {raw_orders.shape[0]} raw rows to PostgreSQL...")
-    try:
-        raw_orders.to_sql(
-            name="raw_superstore_orders",
-            con=engine,
-            schema="raw_data",
-            if_exists="replace",
-            index=False,
-            method="multi",
-            chunksize=10000,
-        )
-        print("Successfully landed 1:1 raw data into PostgreSQL 'raw_data' schema.")
+    files_to_load = {
+        "olist_orders_dataset.csv": "olist_orders",
+        "olist_order_reviews_dataset.csv": "olist_reviews",
+        "olist_order_items_dataset.csv": "olist_order_items",
+        "olist_products_dataset.csv": "olist_products",
+        "olist_customers_dataset.csv": "olist_customers",
+    }
 
-    except Exception as e:
-        print(f"Failed to load data to PostgreSQL: {e}")
+    # Search the cache for the exact files
+    found_files = {}
+    for root, dirs, files in os.walk(dataset_path):
+        for file in files:
+            if file in files_to_load:
+                found_files[file] = os.path.join(root, file)
+
+    for file_name, table_name in files_to_load.items():
+        if file_name in found_files:
+            file_path = found_files[file_name]
+            print(f"Ingesting {file_name} into raw_data.{table_name}...")
+            try:
+                # Engine='python' and on_bad_lines='skip' prevent the tokenizing crash
+                df = pd.read_csv(file_path, engine="python", on_bad_lines="skip", encoding="utf-8")
+
+                df.to_sql(
+                    name=table_name, con=engine, schema="raw_data", if_exists="replace", index=False, chunksize=10000
+                )
+            except Exception as e:
+                print(f"Failed to load {file_name}: {e}")
+        else:
+            print(f"Skipped: {file_name} not found.")
 
 
 if __name__ == "__main__":
-    main()
+    print("Starting data ingestion pipeline...")
+    setup_database()
+    ingest_olist()
+    print("Pipeline complete. Raw data is safely loaded in the raw_data schema.")
+
+# 4. Main Pipeline Execution
+if __name__ == "__main__":
+    print("Starting data ingestion pipeline...")
+    setup_database()
+
+    # Run the ingestion modules sequentially
+    # ingest_superstore()
+    ingest_olist()
+
+    print("Pipeline complete. All raw data is safely loaded in the raw_data schema.")
