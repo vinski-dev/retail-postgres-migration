@@ -39,7 +39,7 @@ jobs:
           python-version: "3.10"
 
       - name: Install dependencies
-        run: pip install pandas sqlalchemy psycopg2-binary dbt-postgres
+        run: pip install pandas sqlalchemy psycopg2-binary dbt-postgres kagglehub
 
       # 2. Ingest the raw data into the temporary CI database
       - name: Ingest Raw Data
