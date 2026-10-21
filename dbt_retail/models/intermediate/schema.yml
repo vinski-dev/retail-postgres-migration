@@ -1,0 +1,20 @@
+version: 2
+
+models:
+  - name: int_olist_order_items_aggregated
+    description: "Pre-aggregated line items rolled up to the order grain."
+    columns:
+      - name: order_id
+        description: "Primary key. One row per order."
+        tests:
+          - unique
+          - not_null
+
+      - name: total_items
+        tests:
+          - not_null
+
+      - name: total_order_value
+        description: "The sum of price and freight. Should never be negative."
+        tests:
+          - not_null

@@ -1,0 +1,47 @@
+version: 2
+
+metrics:
+  - name: gross_revenue
+    description: "Total gross revenue generated from orders."
+    type: simple
+    label: "Gross Revenue"
+    type_params:
+      measure: total_gross_revenue
+
+  - name: items_sold
+    description: "Total volume of items sold."
+    type: simple
+    label: "Items Sold"
+    type_params:
+      measure: total_items_sold
+
+  - name: cx_detractor_volume
+    description: "Total volume of bad reviews."
+    type: simple
+    label: "Detractor Volume"
+    type_params:
+      measure: detractor_count
+
+  # Derived Metric Example: Average Order Value (AOV)
+  - name: average_order_value
+    description: "Gross revenue divided by total orders."
+    type: derived
+    label: "Average Order Value"
+    type_params:
+      expr: gross_revenue / order_count
+      metrics:
+        - name: gross_revenue
+        - name: order_count
+
+  # We need a quick simple metric for order_count to support AOV
+  - name: order_count
+    description: "Count of unique orders."
+    type: simple
+    label: "Total Orders"
+    type_params:
+      measure: count_of_orders
+
+# Add the count measure to the semantic_fct_olist_orders measures block:
+#      - name: count_of_orders
+#        agg: count
+#        expr: order_id

@@ -1,0 +1,31 @@
+version: 2
+
+models:
+  - name: stg_olist_orders
+    columns:
+      - name: order_id
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_olist_products
+    columns:
+      - name: product_id
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_olist_reviews
+    columns:
+      - name: order_id
+        tests:
+          - unique
+          - not_null
+
+  - name: stg_olist_order_items
+    tests:
+      # Tests the composite key (grain) of order_id + order_item_id
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - order_id
+            - order_item_id

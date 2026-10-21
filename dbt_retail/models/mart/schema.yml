@@ -41,3 +41,27 @@ models:
           - relationships:
               to: ref('dim_products')
               field: product_id
+      - name: fct_olist_orders
+        description: "Final enterprise fact table for Olist orders, combining financials and CX metrics."
+        columns:
+          - name: order_id
+            description: "Primary key. Must be strictly unique to prevent BI fan-outs."
+            tests:
+              - unique
+              - not_null
+
+          - name: customer_id
+            tests:
+              - not_null
+
+          - name: total_gross_revenue
+            tests:
+              - not_null
+
+          - name: is_detractor
+            description: "Derived flag indicating if the customer gave a 1 or 2 star review."
+            tests:
+              - not_null
+              - accepted_values:
+                  values: [0, 1]
+                  quote: false

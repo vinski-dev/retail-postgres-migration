@@ -11,3 +11,4 @@ kagglehub
 dbt-postgres
 python-dotenv
 dbt-metricflow
+streamlit

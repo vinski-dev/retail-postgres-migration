@@ -1,0 +1,59 @@
+version: 2
+
+semantic_models:
+  # --- FACT: ORDERS ---
+  - name: semantic_fct_olist_orders
+    description: "Core semantic model for Olist order transactions."
+    model: ref('fct_olist_orders')
+
+    defaults:
+      agg_time_dimension: order_purchase_at
+
+    entities:
+      - name: order_id
+        type: primary
+      - name: customer_id
+        type: foreign
+
+    dimensions:
+      - name: order_purchase_at
+        type: time
+        type_params:
+          time_granularity: day
+      - name: order_status
+        type: categorical
+
+    measures:
+      - name: total_gross_revenue
+        description: "Sum of item prices and freight."
+        agg: sum
+        expr: total_gross_revenue
+      - name: total_items_sold
+        description: "Total physical items purchased."
+        agg: sum
+        expr: total_items
+      - name: detractor_count
+        description: "Count of 1 or 2 star reviews."
+        agg: sum
+        expr: is_detractor
+      - name: count_of_orders
+        description: "Count of primary key order IDs."
+        agg: count
+        expr: order_id
+
+  # --- DIMENSION: CUSTOMERS ---
+  - name: semantic_dim_olist_customers
+    description: "Customer geography dimension."
+    model: ref('dim_olist_customers')
+
+    entities:
+      - name: customer_id
+        type: primary
+
+    dimensions:
+      - name: city
+        type: categorical
+      - name: state
+        type: categorical
+      - name: zip_code
+        type: categorical
